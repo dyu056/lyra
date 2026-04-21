@@ -502,18 +502,26 @@ class WANDiffusionModel(ImaginaireModel):
                 pretrained_lora_state_dict = state_dict_converter(pretrained_lora_state_dict)
             if self.fsdp_device_mesh:
                 _state_dict = get_model_state_dict(model)
+                # Get actual model parameters for device_mesh/placements metadata
+                model_params = {k: v for k, v in model.named_parameters()}
+
                 missing_keys = []
                 unexpected_keys = []
                 for k in _state_dict.keys():
                     if "_extra_state" in k:
                         pass
                     if k in pretrained_lora_state_dict:
-                        # set local tensor to DTensor
-                        _state_dict[k] = distribute_tensor(
-                            pretrained_lora_state_dict.pop(k),
-                            _state_dict[k].device_mesh,
-                            _state_dict[k].placements,
-                        )
+                        param = model_params[k]
+                        if isinstance(param, DTensor):
+                            # FSDP-wrapped parameter: distribute the tensor
+                            _state_dict[k] = distribute_tensor(
+                                pretrained_lora_state_dict.pop(k),
+                                param.device_mesh,
+                                param.placements,
+                            )
+                        else:
+                            # LoRA parameter (not DTensor): load directly
+                            _state_dict[k] = pretrained_lora_state_dict.pop(k)
                     else:
                         missing_keys.append(k)
                 unexpected_keys = list(pretrained_lora_state_dict.keys())

@@ -170,6 +170,17 @@ def parse_arguments() -> argparse.Namespace:
                         help="Frames for zoom-out. Falls back to --num_frames if not set.")
     parser.add_argument("--resolution", type=str, default="480,832", help="H,W")
     parser.add_argument("--context_parallel_size", type=int, default=1)
+    parser.add_argument(
+        "--enable_fsdp",
+        action="store_true",
+        help="Shard the model across a distributed torchrun launch to reduce load-time VRAM.",
+    )
+    parser.add_argument(
+        "--fsdp_shard_size",
+        type=int,
+        default=None,
+        help="FSDP sharding group size. Defaults to WORLD_SIZE when --enable_fsdp is set.",
+    )
     parser.add_argument("--lora_paths", type=str, nargs="+",
                         default=["checkpoints/lora/realism_boost.safetensors",
                                  "checkpoints/lora/detail_enhancer.safetensors"])
@@ -465,6 +476,29 @@ DMD_LORA_PATH = "checkpoints/lora/dmd_distillation.safetensors"
 DMD_LORA_WEIGHT = 1.0
 
 
+def _resolve_checkpoint_dir(checkpoint_dir: str) -> str:
+    """Resolve release-root style checkpoint paths to the DCP root expected by the loader."""
+    if checkpoint_dir.endswith(".pth"):
+        return checkpoint_dir
+
+    candidates = [
+        checkpoint_dir,
+        os.path.join(checkpoint_dir, "checkpoints"),
+        os.path.join(checkpoint_dir, "checkpoints", "model"),
+        os.path.join(checkpoint_dir, "model"),
+    ]
+    for candidate in candidates:
+        metadata_path = os.path.join(candidate, "model", ".metadata")
+        if os.path.isfile(metadata_path):
+            if candidate != checkpoint_dir:
+                log.info(
+                    f"Resolved checkpoint_dir from {checkpoint_dir} to {candidate}",
+                    rank0_only=True,
+                )
+            return candidate
+    return checkpoint_dir
+
+
 def _apply_dmd_defaults(args):
     """When --use_dmd is set, inject the DMD LoRA and switch to the DMD scheduler.
 
@@ -490,13 +524,25 @@ if __name__ == "__main__":
     args = parse_arguments()
     _apply_dmd_defaults(args)
 
+    world_size = int(os.environ.get("WORLD_SIZE", "1"))
+    use_distributed = world_size > 1
+    if args.fsdp_shard_size is not None and not args.enable_fsdp:
+        raise RuntimeError("--fsdp_shard_size requires --enable_fsdp.")
+    if (args.context_parallel_size > 1 or args.enable_fsdp) and not use_distributed:
+        raise RuntimeError(
+            "--context_parallel_size > 1 and --enable_fsdp require a distributed launch "
+            "(for example: torchrun --nproc_per_node=<N> ...)."
+        )
+
     process_group = None
-    if args.context_parallel_size > 1:
-        import imaginaire
+    if use_distributed:
+        from lyra_2._ext import imaginaire
         from megatron.core import parallel_state
+
         imaginaire.utils.distributed.init()
-        parallel_state.initialize_model_parallel(context_parallel_size=args.context_parallel_size)
-        process_group = parallel_state.get_context_parallel_group()
+        if args.context_parallel_size > 1:
+            parallel_state.initialize_model_parallel(context_parallel_size=args.context_parallel_size)
+            process_group = parallel_state.get_context_parallel_group()
 
     os.makedirs(args.output_path, exist_ok=True)
     misc.set_random_seed(seed=args.seed, by_rank=True)
@@ -511,13 +557,16 @@ if __name__ == "__main__":
         "model.config.use_mp_policy_fsdp=False",
         "model.config.keep_original_net_dtype=False",
     ]
+    if args.enable_fsdp:
+        fsdp_shard_size = args.fsdp_shard_size or world_size
+        experiment_opts += [f"model.config.fsdp_shard_size={fsdp_shard_size}"]
     if args.lora_paths:
         experiment_opts += ["model.config.net.postpone_checkpoint=True"]
     model, config = load_model_from_checkpoint(
         config_file="lyra_2/_src/configs/config.py",
         experiment_name=args.experiment,
-        checkpoint_path=args.checkpoint_dir,
-        enable_fsdp=False,
+        checkpoint_path=_resolve_checkpoint_dir(args.checkpoint_dir),
+        enable_fsdp=args.enable_fsdp,
         instantiate_ema=False,
         load_ema_to_reg=False,
         experiment_opts=experiment_opts,

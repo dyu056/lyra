@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>3D/4D Reconstruction Mindmap</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Paper Taxonomy</p>
+          <h1>3D/4D Reconstruction & World Models</h1>
+        </div>
+        <div class="top-actions">
+          <button id="resetView" type="button">Reset View</button>
+          <button id="expandAll" type="button">Expand 2 Levels</button>
+          <button id="collapseAll" type="button">Collapse</button>
+        </div>
+      </header>
+
+      <aside class="sidebar">
+        <label class="search">
+          <span>Search</span>
+          <input id="searchInput" type="search" placeholder="paper, method, motivation, arXiv id..." />
+        </label>
+
+        <div class="filters">
+          <label>
+            Motivation
+            <select id="motivationFilter">
+              <option value="">All motivations</option>
+            </select>
+          </label>
+          <label>
+            Angle
+            <select id="angleFilter">
+              <option value="">All angles</option>
+            </select>
+          </label>
+          <label>
+            Solution
+            <select id="solutionFilter">
+              <option value="">All solution families</option>
+            </select>
+          </label>
+        </div>
+
+        <section class="stats" id="stats"></section>
+
+        <section class="legend">
+          <h2>Node Types</h2>
+          <div><i class="dot motivation"></i> Motivation</div>
+          <div><i class="dot angle"></i> Problem angle</div>
+          <div><i class="dot subproblem"></i> Subproblem</div>
+          <div><i class="dot solution"></i> Solution family</div>
+          <div><i class="dot paper"></i> Paper</div>
+        </section>
+      </aside>
+
+      <main class="workspace">
+        <section class="canvas-panel">
+          <div class="panel-head">
+            <div>
+              <h2>Mindmap Canvas</h2>
+              <p id="canvasHint">Click nodes to expand. Drag to pan, wheel to zoom.</p>
+            </div>
+            <div class="result-count" id="resultCount"></div>
+          </div>
+          <svg id="mindmap" role="img" aria-label="Mindmap canvas"></svg>
+        </section>
+
+        <section class="details-panel">
+          <div class="panel-head">
+            <div>
+              <h2 id="selectionTitle">Selected Papers</h2>
+              <p id="selectionMeta">Showing the currently selected branch.</p>
+            </div>
+          </div>
+          <div id="paperGrid" class="paper-grid"></div>
+        </section>
+      </main>
+    </div>
+
+    <template id="paperCardTemplate">
+      <article class="paper-card">
+        <button class="thumb-button" type="button">
+          <img class="paper-image" alt="" loading="lazy" />
+        </button>
+        <div class="paper-body">
+          <div class="paper-meta"></div>
+          <h3></h3>
+          <p class="one-liner"></p>
+          <dl>
+            <div><dt>Motivation</dt><dd class="motivation"></dd></div>
+            <div><dt>Angle</dt><dd class="angle"></dd></div>
+            <div><dt>Subproblem</dt><dd class="subproblem"></dd></div>
+            <div><dt>Solution</dt><dd class="solution"></dd></div>
+          </dl>
+          <div class="links">
+            <a class="pdf" target="_blank" rel="noreferrer">PDF</a>
+            <a class="figure" target="_blank" rel="noreferrer">Figure</a>
+            <a class="code" target="_blank" rel="noreferrer">Code</a>
+          </div>
+        </div>
+      </article>
+    </template>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

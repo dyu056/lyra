@@ -84,6 +84,14 @@ tmp/
 temp/
 *.mp4
 
+# Local paper-collection artifacts that are too large/noisy for git.
+literature/
+paper_collection_3d4d_reconstruction_2026_04_26/pdfs/
+paper_collection_3d4d_reconstruction_2026_04_26/metadata/*.xml
+paper_collection_3d4d_reconstruction_2026_04_26/boardmix_mindmap/method_figures/
+paper_collection_3d4d_reconstruction_2026_04_26/code_audit/cache/
+paper_collection_3d4d_reconstruction_2026_04_26/code_audit/repos/
+
 # Assets
 
 debug/
